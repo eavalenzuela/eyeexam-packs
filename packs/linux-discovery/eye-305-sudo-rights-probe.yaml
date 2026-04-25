@@ -1,0 +1,36 @@
+id: eye-305-sudo-rights-probe
+name: Non-interactive sudo rights probe
+description: |
+  Mimics T1033 + T1069.001: sudo -n -l asks "what can I run via sudo
+  without a password?" without prompting. Strong recon signal — rare
+  in normal interactive sessions. Exits non-zero when no sudo rights;
+  the invocation itself is the signal.
+
+attack:
+  technique: T1069.001
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-305
+      sudo -n -l > /tmp/eyeexam-305/sudo-l.out 2>&1 || true
+      echo "eye-305 sudo probe complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-305
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-305
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001b
+    backend: slither
+    description: proc-sudo-rights-probe — fires on sudo -n -l

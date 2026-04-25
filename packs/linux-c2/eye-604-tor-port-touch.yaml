@@ -1,0 +1,43 @@
+id: eye-604-tor-port-touch
+name: Connect attempt to Tor SOCKS / control / OR ports
+description: |
+  Mimics T1090.003 (Multi-hop Proxy: Tor): connect attempts to 9050
+  (SOCKS), 9051 (control), and 9001 (relay) on loopback. Expected to
+  fail (connection refused) unless Tor is running. The connect attempt
+  to the well-known Tor port is the slither network_connection signal.
+
+attack:
+  technique: T1090.003
+  tactic: TA0011
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-604
+      for port in 9050 9051 9001; do
+        if command -v nc >/dev/null 2>&1; then
+          nc -z -w 1 127.0.0.1 "$port" \
+            >> /tmp/eyeexam-604/probe.out 2>&1 || true
+        else
+          (exec 3<>/dev/tcp/127.0.0.1/"$port") 2>>/tmp/eyeexam-604/probe.out || true
+        fi
+      done
+      echo "eye-604 tor port touch complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-604
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-604
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000025
+    backend: slither
+    description: net-tor-port-egress — network_connection to dst port 9050/9051/9001

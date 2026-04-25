@@ -1,0 +1,41 @@
+id: eye-601-dns-txt-beacon
+name: DNS TXT beacon to a reserved TLD
+description: |
+  Mimics T1071.004 (DNS C2): dig +short TXT against a .invalid domain.
+  RFC2606 reserved TLDs always NXDOMAIN — there's no real beacon, but
+  the query type + TLD pattern is the signal. Skips cleanly if dig is
+  not installed.
+
+attack:
+  technique: T1071.004
+  tactic: TA0011
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-601
+      if command -v dig >/dev/null 2>&1; then
+        dig +short TXT eyeexam-beacon.invalid \
+          > /tmp/eyeexam-601/dig.out 2>&1 || true
+      else
+        echo "dig not installed; skipping" > /tmp/eyeexam-601/dig.out
+      fi
+      echo "eye-601 dns beacon complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-601
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-601
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000021
+    backend: slither
+    description: proc-dns-suspicious-query — dig TXT to .invalid TLD

@@ -1,0 +1,39 @@
+id: eye-205-procfs-environ-scrape
+name: Scrape /proc/<pid>/environ for credentials
+description: |
+  Mimics T1552.001: process environment scraping. cats /proc/$$/environ
+  (the test's own pid, no privilege boundary crossed) and greps for
+  cred-shaped strings. Read-only and self-targeting; no other process's
+  env is exposed. The cmdline pattern (cat / grep against /proc/.../environ)
+  is the signal.
+
+attack:
+  technique: T1552.001
+  tactic: TA0006
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-205
+      cat /proc/$$/environ > /tmp/eyeexam-205/env.bin 2>/dev/null || true
+      grep -aE 'TOKEN|KEY|SECRET|PASS' /proc/$$/environ \
+        > /tmp/eyeexam-205/hits.out 2>/dev/null || true
+      echo "eye-205 procfs scrape complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-205
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-205
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001f
+    backend: slither
+    description: proc-procfs-environ-scrape — fires on grep / cat against /proc/*/environ

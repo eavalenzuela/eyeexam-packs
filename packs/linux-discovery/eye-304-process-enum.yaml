@@ -1,0 +1,36 @@
+id: eye-304-process-enum
+name: Process listing dumped to /tmp
+description: |
+  Mimics T1057 (Process Discovery) followed by staging. ps -ef and ps
+  auxf with output redirected to /tmp/eyeexam-304 is the high-confidence
+  pair signal — ps alone is normal, ps-into-staging-dir is not.
+
+attack:
+  technique: T1057
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-304
+      ps -ef > /tmp/eyeexam-304/ps-ef.out
+      ps auxf > /tmp/eyeexam-304/ps-auxf.out 2>/dev/null || ps aux > /tmp/eyeexam-304/ps-auxf.out
+      echo "eye-304 process enum complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-304
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-304
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001a
+    backend: slither
+    description: proc-process-enum-to-file — fires on ps -ef > /tmp/...

@@ -1,0 +1,46 @@
+id: eye-603-nc-fakebind
+name: Netcat invoked in listener mode (fake bind shell)
+description: |
+  Mimics T1095 (Non-Application Layer Protocol). Invokes nc -l on a
+  random loopback high port for at most 1s — the slither signal is the
+  'nc -l ...' process_creation event itself, not any actual connection.
+  No -e / EXEC: flag, so this is a bind primitive only. Skips cleanly
+  if nc is not installed.
+
+attack:
+  technique: T1095
+  tactic: TA0011
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-603
+      if ! command -v nc >/dev/null 2>&1; then
+        echo "nc not installed; skipping" > /tmp/eyeexam-603/out
+        exit 0
+      fi
+      port=$(( 30000 + RANDOM % 10000 ))
+      timeout 1 nc -l -p "$port" 127.0.0.1 \
+        > /tmp/eyeexam-603/listener.out 2>&1 \
+        || timeout 1 nc -l "$port" \
+             > /tmp/eyeexam-603/listener.out 2>&1 \
+        || true
+      echo "eye-603 nc fakebind on port $port complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-603
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-603
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000024
+    backend: slither
+    description: proc-nc-listener — fires on nc -l -p invocation

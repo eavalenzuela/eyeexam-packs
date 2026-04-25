@@ -1,0 +1,39 @@
+id: eye-301-host-recon-burst
+name: Host metadata enumeration burst
+description: |
+  Mimics T1082 (System Information Discovery): a tight burst of host
+  metadata commands an attacker would run after landing on a box —
+  uname, hostnamectl, OS release, CPU info. Output is discarded; the
+  signal is the process burst itself.
+
+attack:
+  technique: T1082
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-301
+      uname -a > /tmp/eyeexam-301/uname.out
+      hostnamectl > /tmp/eyeexam-301/hostnamectl.out 2>/dev/null || true
+      cat /etc/os-release > /tmp/eyeexam-301/os-release.out
+      lscpu > /tmp/eyeexam-301/lscpu.out 2>/dev/null || true
+      echo "eye-301 burst complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-301
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-301
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000017
+    backend: slither
+    description: proc-host-recon-hostnamectl — fires on the hostnamectl invocation

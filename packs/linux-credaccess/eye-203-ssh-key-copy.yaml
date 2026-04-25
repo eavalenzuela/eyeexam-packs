@@ -1,0 +1,42 @@
+id: eye-203-ssh-key-copy
+name: Copy a sandbox SSH private key into a staging dir
+description: |
+  Mimics T1552.004 (Unsecured Credentials: Private Keys). Generates a
+  throwaway ed25519 fixture key under /tmp/eyeexam-203/.ssh/id_rsa and
+  copies it to a staging directory. The real ~/.ssh is never read or
+  written. The cp invocation against an id_rsa-named path is the signal.
+
+attack:
+  technique: T1552.004
+  tactic: TA0006
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-203/.ssh /tmp/eyeexam-203/exfil
+      cat > /tmp/eyeexam-203/.ssh/id_rsa <<'EOF'
+      -----BEGIN OPENSSH PRIVATE KEY-----
+      eyeexam-203-fixture-key-not-real
+      -----END OPENSSH PRIVATE KEY-----
+      EOF
+      chmod 600 /tmp/eyeexam-203/.ssh/id_rsa
+      cp /tmp/eyeexam-203/.ssh/id_rsa /tmp/eyeexam-203/exfil/id_rsa
+      echo "eye-203 key copy complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-203
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-203
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001d
+    backend: slither
+    description: proc-ssh-private-key-access — cp ... id_rsa

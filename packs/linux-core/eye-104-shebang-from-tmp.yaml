@@ -1,0 +1,40 @@
+id: eye-104-shebang-from-tmp
+name: Shebang script executed from /tmp
+description: |
+  Mimics T1059.004: a script dropped under a world-writable path
+  (/tmp/eyeexam-104) and executed by absolute path. SIEM rules keyed on
+  "exec from /tmp" or "shebang interpreter spawned from world-writable
+  dir" should fire.
+
+attack:
+  technique: T1059.004
+  tactic: TA0002
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-104
+      cat > /tmp/eyeexam-104/run.sh <<'EOF'
+      #!/bin/bash
+      echo "eye-104 ran from $0 as pid $$"
+      EOF
+      chmod +x /tmp/eyeexam-104/run.sh
+      /tmp/eyeexam-104/run.sh
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-104
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-104
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000015
+    backend: slither
+    description: proc-exec-from-world-writable — /tmp/eyeexam-104/run.sh

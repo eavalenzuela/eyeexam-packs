@@ -1,0 +1,40 @@
+id: eye-303-network-config-enum
+name: Network configuration enumeration
+description: |
+  Mimics T1016 (System Network Configuration Discovery): ip a, ip r,
+  ss -tulpn, /etc/resolv.conf. The ss flag combo is the highest-signal
+  single command — most legitimate ss usage is interactive without all
+  four flags.
+
+attack:
+  technique: T1016
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-303
+      ip a > /tmp/eyeexam-303/ip-a.out 2>/dev/null || ifconfig > /tmp/eyeexam-303/ip-a.out
+      ip r > /tmp/eyeexam-303/ip-r.out 2>/dev/null || route -n > /tmp/eyeexam-303/ip-r.out
+      ss -tulpn > /tmp/eyeexam-303/ss.out 2>/dev/null || \
+        netstat -tulpn > /tmp/eyeexam-303/ss.out 2>/dev/null || true
+      cat /etc/resolv.conf > /tmp/eyeexam-303/resolv.out
+      echo "eye-303 net enum complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-303
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-303
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000019
+    backend: slither
+    description: proc-network-listen-enum — fires on ss -tulpn / netstat -tulpn

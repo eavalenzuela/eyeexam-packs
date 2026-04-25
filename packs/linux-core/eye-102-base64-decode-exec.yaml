@@ -1,0 +1,41 @@
+id: eye-102-base64-decode-exec
+name: Base64-decoded payload written and executed
+description: |
+  Mimics T1027 (Obfuscated Files or Information) + T1140 (Deobfuscate /
+  Decode). Writes a base64 blob, decodes it into /tmp/eyeexam-102, makes
+  it executable, and runs it. Process-tree shape is the signal:
+  base64 -d > file ; chmod +x file ; ./file.
+
+attack:
+  technique: T1140
+  tactic: TA0005
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-102
+      blob='IyEvYmluL2Jhc2gKZWNobyAiZXllLTEwMiBkZWNvZGVkICYgcmFuIgo='
+      printf '%s' "$blob" | base64 -d > /tmp/eyeexam-102/payload
+      chmod +x /tmp/eyeexam-102/payload
+      /tmp/eyeexam-102/payload
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-102
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-102
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000013
+    backend: slither
+    description: proc-base64-decode-to-sandbox — base64 -d output to /tmp
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000015
+    backend: slither
+    description: proc-exec-from-world-writable — payload execed from /tmp

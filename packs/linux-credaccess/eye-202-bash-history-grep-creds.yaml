@@ -1,0 +1,43 @@
+id: eye-202-bash-history-grep-creds
+name: Grep a sandbox bash history for credential strings
+description: |
+  Mimics T1552.003 (Unsecured Credentials: Bash History). Writes a fake
+  history file under /tmp/eyeexam-202 containing password=, api_key=,
+  and token= lines, then greps it for those patterns. The real
+  ~/.bash_history is never touched.
+
+attack:
+  technique: T1552.003
+  tactic: TA0006
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-202
+      cat > /tmp/eyeexam-202/.bash_history <<'EOF'
+      ls -la
+      curl -u admin:password=hunter2 https://example.invalid
+      export AWS_SECRET_KEY=AKIA...
+      ssh user@host  # api_key=abc123
+      EOF
+      grep -E 'password=|api_key=|secret=|token=' /tmp/eyeexam-202/.bash_history \
+        > /tmp/eyeexam-202/hits.out || true
+      echo "eye-202 history grep complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-202
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-202
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001c
+    backend: slither
+    description: proc-history-cred-grep — fires on grep of .bash_history for cred patterns

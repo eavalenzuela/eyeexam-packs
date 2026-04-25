@@ -1,0 +1,41 @@
+id: eye-204-aws-creds-read
+name: Read a sandbox ~/.aws/credentials file
+description: |
+  Mimics T1552.001 (Unsecured Credentials: Credentials In Files).
+  Writes a fixture AWS credentials file under /tmp/eyeexam-204/.aws/
+  and reads it. The real ~/.aws is never touched. The file_event on
+  any path containing /.aws/credentials is the signal.
+
+attack:
+  technique: T1552.001
+  tactic: TA0006
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-204/.aws
+      cat > /tmp/eyeexam-204/.aws/credentials <<'EOF'
+      [default]
+      aws_access_key_id     = AKIAIOSFODNN7EXAMPLE
+      aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+      EOF
+      cat /tmp/eyeexam-204/.aws/credentials > /tmp/eyeexam-204/loot.out
+      echo "eye-204 aws creds read complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-204
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-204
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000001e
+    backend: slither
+    description: file-aws-credentials-read — file_event on /.aws/credentials

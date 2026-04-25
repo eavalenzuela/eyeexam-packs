@@ -1,0 +1,39 @@
+id: eye-105-clear-syslog-sandbox
+name: Clear a sandbox syslog-shaped file
+description: |
+  Mimics T1070.002 (Clear Linux or Mac System Logs) on a *sandbox* file
+  shaped like /var/log/messages but living under /tmp/eyeexam-105. The
+  real /var/log is never touched — that would be destructive on a smoke
+  test. The truncate-to-zero pattern (cat /dev/null > messages, : >, or
+  truncate -s 0) is the signal we want SIEM rules to fire on.
+
+attack:
+  technique: T1070.002
+  tactic: TA0005
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-105/log
+      printf 'Apr 25 03:00:01 host CRON[1]: session\nApr 25 03:00:02 host sshd[2]: Accepted\n' \
+        > /tmp/eyeexam-105/log/messages
+      cat /dev/null > /tmp/eyeexam-105/log/messages
+      test ! -s /tmp/eyeexam-105/log/messages && echo "eye-105 log truncated"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-105
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-105
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000016
+    backend: slither
+    description: proc-log-truncate — cat /dev/null > .../messages

@@ -1,0 +1,37 @@
+id: eye-201-shadow-read-attempt
+name: Read /etc/shadow as a non-privileged user
+description: |
+  Mimics T1003.008 (OS Credential Dumping: /etc/passwd and /etc/shadow).
+  Attempts to read /etc/shadow with cat. As a non-root user the open
+  fails with EACCES — the open *attempt* against /etc/shadow by a
+  non-auth utility is the signal slither's file_event rule keys on. No
+  data is exfiltrated.
+
+attack:
+  technique: T1003.008
+  tactic: TA0006
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-201
+      cat /etc/shadow > /tmp/eyeexam-201/shadow.out 2>/tmp/eyeexam-201/err || true
+      echo "eye-201 shadow probe complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-201
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-201
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000000d
+    backend: slither
+    description: file-etc-shadow-access — pre-existing slither rule

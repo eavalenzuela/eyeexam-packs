@@ -1,0 +1,37 @@
+id: eye-306-find-suid-sweep
+name: SUID binary sweep via find -perm
+description: |
+  Mimics T1083 (File and Directory Discovery) — specifically the SUID
+  binary sweep an attacker uses to look for privilege-escalation
+  primitives. Read-only and noisy; the find -perm -4000 pattern is
+  the canonical signal.
+
+attack:
+  technique: T1083
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-306
+      find / -xdev -maxdepth 4 -perm -4000 -type f 2>/dev/null \
+        > /tmp/eyeexam-306/suid.out || true
+      echo "eye-306 suid sweep complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-306
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-306
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000005
+    backend: slither
+    description: proc-find-suid-discovery — pre-existing slither rule

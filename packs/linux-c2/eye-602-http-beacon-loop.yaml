@@ -1,0 +1,40 @@
+id: eye-602-http-beacon-loop
+name: HTTP beacon loop with custom User-Agent
+description: |
+  Mimics T1071.001 (HTTP/S C2): a 5-iteration curl loop to 127.0.0.1
+  with a custom 'EyeExamAgent/1.0' User-Agent. No external traffic; the
+  loopback connect-refused is the signal alongside the implant-shaped UA
+  in argv.
+
+attack:
+  technique: T1071.001
+  tactic: TA0011
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-602
+      for i in 1 2 3 4 5; do
+        curl -sS -m 2 -A "EyeExamAgent/1.0" \
+          http://127.0.0.1:1/eyeexam-beacon-$i \
+          >> /tmp/eyeexam-602/beacon.out 2>&1 || true
+      done
+      echo "eye-602 http beacon loop complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-602
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-602
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000023
+    backend: slither
+    description: proc-curl-custom-user-agent — fires on each curl with -A "EyeExamAgent/1.0"

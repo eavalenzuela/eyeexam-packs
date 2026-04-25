@@ -1,0 +1,36 @@
+id: eye-101-curl-pipe-bash
+name: Curl piped into bash from a sandbox source
+description: |
+  Mimics T1059.004 + T1105: a script is fetched and executed without ever
+  hitting disk in a normal place. Uses a loopback file: URL so SIEM rules
+  keyed on "curl ... | bash" process trees fire without any external
+  traffic. Source script is staged under /tmp/eyeexam-101.
+
+attack:
+  technique: T1059.004
+  tactic: TA0002
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-101
+      printf '#!/bin/bash\necho "eye-101 ran from $$"\n' > /tmp/eyeexam-101/payload.sh
+      curl -sS "file:///tmp/eyeexam-101/payload.sh" | bash
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-101
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-101
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000003
+    backend: slither
+    description: proc-curl-pipe-shell — curl|bash command line

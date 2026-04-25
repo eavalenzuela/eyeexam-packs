@@ -1,0 +1,40 @@
+id: eye-302-account-enum
+name: Local account enumeration
+description: |
+  Mimics T1087.001 (Account Discovery: Local Account). Reads the local
+  user database via getent and cat, prints id/w/last for session info.
+  /etc/passwd is world-readable so this is the noisy end of detection —
+  pair signal with execution context in production.
+
+attack:
+  technique: T1087.001
+  tactic: TA0007
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-302
+      getent passwd > /tmp/eyeexam-302/getent.out
+      cat /etc/passwd > /tmp/eyeexam-302/passwd.out
+      id > /tmp/eyeexam-302/id.out
+      w > /tmp/eyeexam-302/w.out 2>/dev/null || true
+      last -n 5 > /tmp/eyeexam-302/last.out 2>/dev/null || true
+      echo "eye-302 enum complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-302
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-302
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000018
+    backend: slither
+    description: proc-passwd-file-read — fires on cat /etc/passwd and getent passwd
