@@ -1,0 +1,53 @@
+id: eye-402-systemd-user-unit
+name: Drop a systemd user-scope unit file
+description: |
+  Mimics T1543.002 (Systemd Service: User-Scope). Writes a sandbox
+  .service unit under ~/.config/systemd/user/, runs daemon-reload, then
+  removes the unit and reloads again. The unit only references a
+  /tmp/eyeexam-402 marker — never enabled, never started.
+  destructiveness=medium because it transiently registers a unit with
+  the user's systemd instance.
+
+attack:
+  technique: T1543.002
+  tactic: TA0003
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-402 "$HOME/.config/systemd/user"
+      cat > "$HOME/.config/systemd/user/eyeexam-402.service" <<'EOF'
+      [Unit]
+      Description=eyeexam-402 sandbox persistence test (NOT a real service)
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/touch /tmp/eyeexam-402/marker
+
+      [Install]
+      WantedBy=default.target
+      EOF
+      systemctl --user daemon-reload 2>/dev/null || true
+      test -f "$HOME/.config/systemd/user/eyeexam-402.service" \
+        && echo "eye-402 unit installed"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -f "$HOME/.config/systemd/user/eyeexam-402.service"
+      systemctl --user daemon-reload 2>/dev/null || true
+      rm -rf /tmp/eyeexam-402
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-402
+      test ! -e "$HOME/.config/systemd/user/eyeexam-402.service"
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000026
+    backend: slither
+    description: file-systemd-user-unit-write — file_event on ~/.config/systemd/user/eyeexam-402.service

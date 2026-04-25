@@ -1,0 +1,47 @@
+id: eye-401-cron-add
+name: Add a marker entry to the user crontab
+description: |
+  Mimics T1053.003 (Cron). Saves the current user crontab, appends a
+  marker entry, then restores the original. The crontab write to
+  /var/spool/cron/<user> is the file_event slither rule keys on.
+  destructiveness=medium because it transiently modifies the user's
+  real crontab — verify_cleanup confirms the marker is gone and the
+  original entries are restored.
+
+attack:
+  technique: T1053.003
+  tactic: TA0003
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-401
+      crontab -l > /tmp/eyeexam-401/saved 2>/dev/null || : > /tmp/eyeexam-401/saved
+      ( cat /tmp/eyeexam-401/saved
+        echo "*/5 * * * * touch /tmp/eyeexam-401/marker # eyeexam-401"
+      ) | crontab -
+      crontab -l | grep -q eyeexam-401 && echo "eye-401 cron entry added"
+
+cleanup:
+  - shell: bash
+    command: |
+      if [ -s /tmp/eyeexam-401/saved ]; then
+        crontab /tmp/eyeexam-401/saved
+      else
+        crontab -r 2>/dev/null || true
+      fi
+      rm -rf /tmp/eyeexam-401
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-401
+      ! crontab -l 2>/dev/null | grep -q eyeexam-401
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000000c
+    backend: slither
+    description: file-cron-persistence — file_event on /var/spool/cron/<user>

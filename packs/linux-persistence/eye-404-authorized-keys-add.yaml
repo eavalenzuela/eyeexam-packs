@@ -1,0 +1,53 @@
+id: eye-404-authorized-keys-add
+name: Append a fixture key to ~/.ssh/authorized_keys
+description: |
+  Mimics T1098.004 (Account Manipulation: SSH Authorized Keys). Saves
+  the current ~/.ssh/authorized_keys, appends a marker fixture key
+  (clearly fake, not a usable public key), then restores the original.
+  destructiveness=medium because it transiently modifies a real SSH
+  trust file — verify_cleanup confirms the marker line is gone.
+
+attack:
+  technique: T1098.004
+  tactic: TA0003
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-404 "$HOME/.ssh"
+      chmod 700 "$HOME/.ssh"
+      if [ -f "$HOME/.ssh/authorized_keys" ]; then
+        cp -p "$HOME/.ssh/authorized_keys" /tmp/eyeexam-404/saved
+      else
+        : > /tmp/eyeexam-404/saved
+        : > "$HOME/.ssh/authorized_keys"
+        chmod 600 "$HOME/.ssh/authorized_keys"
+      fi
+      echo 'ssh-ed25519 AAAA-eyeexam-404-fixture-not-a-real-key eyeexam-404@bas' \
+        >> "$HOME/.ssh/authorized_keys"
+      grep -q eyeexam-404 "$HOME/.ssh/authorized_keys" \
+        && echo "eye-404 authorized_keys marker added"
+
+cleanup:
+  - shell: bash
+    command: |
+      if [ -s /tmp/eyeexam-404/saved ]; then
+        cp -p /tmp/eyeexam-404/saved "$HOME/.ssh/authorized_keys"
+      else
+        rm -f "$HOME/.ssh/authorized_keys"
+      fi
+      rm -rf /tmp/eyeexam-404
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-404
+      ! grep -q eyeexam-404 "$HOME/.ssh/authorized_keys" 2>/dev/null
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000000b
+    backend: slither
+    description: file-authorized-keys-write — file_event on ~/.ssh/authorized_keys

@@ -2,8 +2,11 @@ id: eye-103-python-oneliner
 name: Python -c one-liner writes a marker
 description: |
   Mimics T1059.006: a one-shot python invocation used as a scripting
-  interpreter. The command line itself is the signal — argv contains the
-  full -c payload. Writes a marker under /tmp/eyeexam-103.
+  interpreter. Argv contains the full -c payload — we use
+  __import__('os') so the inline script carries a suspicious-token
+  marker matching slither's tightened proc-python-inline-script rule
+  (bare `python -c` is too noisy on managed hosts to score on its own).
+  Writes a marker under /tmp/eyeexam-103.
 
 attack:
   technique: T1059.006
@@ -16,8 +19,8 @@ execute:
   - shell: bash
     command: |
       mkdir -p /tmp/eyeexam-103
-      python3 -c "import os; open('/tmp/eyeexam-103/marker','w').write(str(os.getpid()))" \
-        || python -c "import os; open('/tmp/eyeexam-103/marker','w').write(str(os.getpid()))"
+      python3 -c "open('/tmp/eyeexam-103/marker','w').write(str(__import__('os').getpid()))" \
+        || python -c "open('/tmp/eyeexam-103/marker','w').write(str(__import__('os').getpid()))"
       test -s /tmp/eyeexam-103/marker && echo "eye-103 marker written"
 
 cleanup:

@@ -1,0 +1,48 @@
+id: eye-406-at-job-schedule
+name: Schedule a no-op at-job
+description: |
+  Mimics T1053.002 (Scheduled Task/Job: At). Schedules a one-shot at
+  job 5 minutes in the future that touches a sandbox marker, captures
+  the job id, then atrm's it during cleanup so the job never fires.
+  destructiveness=medium because it transiently registers a real
+  at-queue entry. Skips cleanly if at is not installed.
+
+attack:
+  technique: T1053.002
+  tactic: TA0003
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-406
+      if ! command -v at >/dev/null 2>&1; then
+        echo "at not installed; skipping" > /tmp/eyeexam-406/out
+        exit 0
+      fi
+      echo "touch /tmp/eyeexam-406/marker # eyeexam-406" \
+        | at now + 5 minutes 2> /tmp/eyeexam-406/at.err
+      grep -oE 'job [0-9]+' /tmp/eyeexam-406/at.err \
+        | head -1 | awk '{print $2}' > /tmp/eyeexam-406/jobid
+      test -s /tmp/eyeexam-406/jobid \
+        && echo "eye-406 at job scheduled (id $(cat /tmp/eyeexam-406/jobid))"
+
+cleanup:
+  - shell: bash
+    command: |
+      if [ -s /tmp/eyeexam-406/jobid ] && command -v atrm >/dev/null 2>&1; then
+        atrm "$(cat /tmp/eyeexam-406/jobid)" 2>/dev/null || true
+      fi
+      rm -rf /tmp/eyeexam-406
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-406
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000028
+    backend: slither
+    description: proc-at-job-schedule — fires on `at` invocation

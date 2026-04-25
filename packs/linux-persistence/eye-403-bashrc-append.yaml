@@ -1,0 +1,43 @@
+id: eye-403-bashrc-append
+name: Append a marker alias to ~/.bashrc
+description: |
+  Mimics T1546.004 (Event Triggered Execution: Unix Shell Configuration
+  Modification). Saves ~/.bashrc, appends an 'eyeexam-403' marker alias,
+  then restores the original from the saved copy. The append to
+  ~/.bashrc is the file_event slither rule keys on. destructiveness=
+  medium because it transiently modifies a real shell init file —
+  verify_cleanup confirms the marker line is gone.
+
+attack:
+  technique: T1546.004
+  tactic: TA0003
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-403
+      cp -p "$HOME/.bashrc" /tmp/eyeexam-403/saved 2>/dev/null \
+        || : > /tmp/eyeexam-403/saved
+      printf '\n# eyeexam-403\nalias eyeexam403marker="echo persistence"\n' \
+        >> "$HOME/.bashrc"
+      grep -q eyeexam-403 "$HOME/.bashrc" && echo "eye-403 bashrc marker added"
+
+cleanup:
+  - shell: bash
+    command: |
+      cp -p /tmp/eyeexam-403/saved "$HOME/.bashrc"
+      rm -rf /tmp/eyeexam-403
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-403
+      ! grep -q eyeexam-403 "$HOME/.bashrc"
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000000e
+    backend: slither
+    description: file-rc-persistence — file_event on ~/.bashrc

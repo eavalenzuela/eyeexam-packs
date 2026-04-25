@@ -1,0 +1,42 @@
+id: eye-405-motd-script-drop
+name: Drop a sandbox update-motd.d script
+description: |
+  Mimics T1037.004 (Boot or Logon Initialization Scripts: RC Scripts) —
+  motd-d scripts execute on every interactive login. Real
+  /etc/update-motd.d/ requires root; this writes to a sandbox
+  /tmp/eyeexam-405/update-motd.d/ path that the slither rule matches by
+  the 'update-motd.d/' substring.
+
+attack:
+  technique: T1037.004
+  tactic: TA0003
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-405/update-motd.d
+      cat > /tmp/eyeexam-405/update-motd.d/99-eyeexam <<'EOF'
+      #!/bin/sh
+      echo "eyeexam-405 motd persistence marker"
+      EOF
+      chmod +x /tmp/eyeexam-405/update-motd.d/99-eyeexam
+      test -x /tmp/eyeexam-405/update-motd.d/99-eyeexam \
+        && echo "eye-405 motd script dropped"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-405
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-405
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000027
+    backend: slither
+    description: file-motd-script-drop — file_event on a path containing 'update-motd.d/'
