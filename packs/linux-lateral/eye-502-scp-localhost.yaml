@@ -1,0 +1,48 @@
+id: eye-502-scp-localhost
+name: scp a marker file to localhost
+description: |
+  Mimics T1021.004: scp transfer to localhost with BatchMode and
+  StrictHostKeyChecking=no — the lateral-movement-shaped scripted scp
+  invocation. Source and destination both under /tmp/eyeexam-502.
+  Skips cleanly if scp / sshd is unavailable.
+
+attack:
+  technique: T1021.004
+  tactic: TA0008
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-502/dst
+      printf 'eye-502 marker\n' > /tmp/eyeexam-502/marker
+      if ! command -v scp >/dev/null 2>&1; then
+        echo "scp not installed; skipping" > /tmp/eyeexam-502/out
+        exit 0
+      fi
+      if ! (exec 3<>/dev/tcp/127.0.0.1/22) 2>/dev/null; then
+        echo "sshd not listening on 127.0.0.1:22; skipping" > /tmp/eyeexam-502/out
+        exit 0
+      fi
+      scp -o BatchMode=yes -o StrictHostKeyChecking=no \
+          -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null \
+          /tmp/eyeexam-502/marker localhost:/tmp/eyeexam-502/dst/marker \
+        > /tmp/eyeexam-502/scp.out 2>&1 || true
+      echo "eye-502 scp attempt complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-502
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-502
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000029
+    backend: slither
+    description: proc-ssh-noninteractive-flags — scp with BatchMode + StrictHostKeyChecking=no

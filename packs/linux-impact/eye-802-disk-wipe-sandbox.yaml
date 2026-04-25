@@ -1,0 +1,37 @@
+id: eye-802-disk-wipe-sandbox
+name: dd /dev/urandom over a sandbox file
+description: |
+  Mimics T1561.001 (Disk Content Wipe) at file-scope. dd writes 10 MiB
+  from /dev/urandom into /tmp/eyeexam-802/data — the random-source +
+  file-of= pattern slither's disk-wipe rule keys on. No block device,
+  no real disk content destroyed.
+
+attack:
+  technique: T1561.001
+  tactic: TA0040
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-802
+      dd if=/dev/urandom of=/tmp/eyeexam-802/data bs=1M count=10 \
+        > /tmp/eyeexam-802/dd.out 2>&1
+      test -s /tmp/eyeexam-802/data && echo "eye-802 dd wipe complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-802
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-802
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000032
+    backend: slither
+    description: proc-disk-wipe-dd — dd if=/dev/urandom of=/tmp/...

@@ -1,0 +1,38 @@
+id: eye-701-tar-staged-archive
+name: tar archive of /etc bits staged in /tmp
+description: |
+  Mimics T1560.001 (Archive via Utility) followed by staging. tar czf
+  creates an archive of /etc/hostname and /etc/os-release into
+  /tmp/eyeexam-701 — both are world-readable so no privilege boundary
+  is crossed. The shell pipeline (tar with system source paths AND
+  /tmp output) is the slither signal.
+
+attack:
+  technique: T1560.001
+  tactic: TA0009
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-701
+      tar czf /tmp/eyeexam-701/stage.tgz /etc/hostname /etc/os-release \
+        2>/tmp/eyeexam-701/tar.err
+      test -s /tmp/eyeexam-701/stage.tgz && echo "eye-701 archive staged"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-701
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-701
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000002c
+    backend: slither
+    description: proc-tar-system-paths-staged — tar with /etc source and /tmp output

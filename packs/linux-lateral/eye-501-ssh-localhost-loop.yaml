@@ -1,0 +1,48 @@
+id: eye-501-ssh-localhost-loop
+name: Non-interactive ssh to localhost
+description: |
+  Mimics T1021.004 (Remote Services: SSH) at the smallest possible
+  scope: ssh into localhost with BatchMode=yes and
+  StrictHostKeyChecking=no, run `true`, exit. No real lateral movement,
+  no credentials harvested — the scripted-flag invocation pattern is
+  the slither signal. Skips cleanly if ssh / sshd is unavailable.
+
+attack:
+  technique: T1021.004
+  tactic: TA0008
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-501
+      if ! command -v ssh >/dev/null 2>&1; then
+        echo "ssh not installed; skipping" > /tmp/eyeexam-501/out
+        exit 0
+      fi
+      if ! (exec 3<>/dev/tcp/127.0.0.1/22) 2>/dev/null; then
+        echo "sshd not listening on 127.0.0.1:22; skipping" > /tmp/eyeexam-501/out
+        exit 0
+      fi
+      ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
+          -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null \
+          localhost true \
+        > /tmp/eyeexam-501/ssh.out 2>&1 || true
+      echo "eye-501 ssh attempt complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-501
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-501
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000029
+    backend: slither
+    description: proc-ssh-noninteractive-flags — ssh with BatchMode + StrictHostKeyChecking=no

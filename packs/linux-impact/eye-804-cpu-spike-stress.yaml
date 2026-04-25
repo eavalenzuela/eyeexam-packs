@@ -1,0 +1,36 @@
+id: eye-804-cpu-spike-stress
+name: 5-second CPU burn via yes > /dev/null
+description: |
+  Mimics T1496 (Resource Hijacking) — the classic cryptojacking-stand-in
+  CPU saturation primitive. Burns one core for 5 seconds via
+  `yes > /dev/null`, then exits. Bounded by `timeout 5` so it cannot
+  outlive the pack. The shell pipeline shape is the slither signal.
+
+attack:
+  technique: T1496
+  tactic: TA0040
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-804
+      timeout 5 bash -c 'yes > /dev/null' || true
+      echo "eye-804 cpu burn complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-804
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-804
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000034
+    backend: slither
+    description: proc-cpu-burn-yes — bash with 'yes > /dev/null' pipeline

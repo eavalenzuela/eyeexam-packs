@@ -1,0 +1,47 @@
+id: eye-801-fake-ransom-rename
+name: Sandbox ransomware-rename + ransom-note drop
+description: |
+  Mimics T1486 (Data Encrypted for Impact). Creates a small fixture
+  file tree under /tmp/eyeexam-801, renames each file with the
+  .eyeexam-locked suffix (recognized by slither's ransomware-marker
+  rule), and drops a RANSOM_NOTE.txt at the root. No actual encryption,
+  no files outside the sandbox dir.
+
+attack:
+  technique: T1486
+  tactic: TA0040
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-801/victim
+      for n in 1 2 3 4 5; do
+        printf 'eye-801 fixture file %s\n' "$n" \
+          > "/tmp/eyeexam-801/victim/doc-$n.txt"
+      done
+      for f in /tmp/eyeexam-801/victim/*.txt; do
+        mv "$f" "${f}.eyeexam-locked"
+      done
+      cat > /tmp/eyeexam-801/victim/RANSOM_NOTE.txt <<'EOF'
+      eyeexam-801 simulated ransomware marker.
+      This file is a BAS test artifact. No data was encrypted.
+      EOF
+      echo "eye-801 ransom rename + note drop complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-801
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-801
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000031
+    backend: slither
+    description: file-ransomware-marker — fires on .eyeexam-locked extension and RANSOM_NOTE.txt

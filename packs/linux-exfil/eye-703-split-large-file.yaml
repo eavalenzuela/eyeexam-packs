@@ -1,0 +1,38 @@
+id: eye-703-split-large-file
+name: dd + split staging primitive
+description: |
+  Mimics T1030 (Data Transfer Size Limits). dd writes a 5 MiB file
+  under /tmp/eyeexam-703, then split -b 1M chunks it into transport-
+  friendly pieces. The split -b invocation is the slither signal.
+
+attack:
+  technique: T1030
+  tactic: TA0010
+
+destructiveness: low
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-703
+      dd if=/dev/zero of=/tmp/eyeexam-703/blob bs=1M count=5 \
+        > /tmp/eyeexam-703/dd.out 2>&1
+      split -b 1M /tmp/eyeexam-703/blob /tmp/eyeexam-703/chunk-
+      ls /tmp/eyeexam-703/chunk-* > /tmp/eyeexam-703/chunks.list
+      echo "eye-703 split staging complete ($(wc -l < /tmp/eyeexam-703/chunks.list) chunks)"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-703
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-703
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-00000000002e
+    backend: slither
+    description: proc-split-staging — split -b invocation

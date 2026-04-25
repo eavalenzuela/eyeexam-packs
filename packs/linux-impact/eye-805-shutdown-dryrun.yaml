@@ -1,0 +1,45 @@
+id: eye-805-shutdown-dryrun
+name: shutdown -k (wall message) then -c (cancel)
+description: |
+  Mimics T1529 (System Shutdown/Reboot). `shutdown -k +60 "..."`
+  broadcasts a wall message warning of an impending shutdown WITHOUT
+  actually scheduling one (-k = kidding). `shutdown -c` then cancels
+  any pending shutdown for completeness. The shutdown invocation is
+  the slither signal. destructiveness=medium because the wall message
+  is observable to other logged-in users on this host.
+
+attack:
+  technique: T1529
+  tactic: TA0040
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-805
+      if ! command -v shutdown >/dev/null 2>&1; then
+        echo "shutdown not installed; skipping" > /tmp/eyeexam-805/out
+        exit 0
+      fi
+      shutdown -k +60 "eyeexam-805 BAS test (no real shutdown)" \
+        > /tmp/eyeexam-805/k.out 2>&1 || true
+      shutdown -c \
+        > /tmp/eyeexam-805/c.out 2>&1 || true
+      echo "eye-805 shutdown -k / -c invocation complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-805
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-805
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000035
+    backend: slither
+    description: proc-shutdown-invocation — fires on shutdown invocation

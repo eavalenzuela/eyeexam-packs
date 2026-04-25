@@ -1,0 +1,40 @@
+id: eye-803-fork-bomb-cap
+name: Capped fork-bomb pattern (50 procs / 5s)
+description: |
+  Mimics T1499 (Endpoint Denial of Service: Resource Exhaustion) using
+  the canonical ':(){ :|:& };:' fork-bomb shape — but caps it via
+  ulimit -u 50 (rlimit on user processes) inside an isolated subshell
+  bounded by `timeout 5`. The shape is unique enough that slither's
+  fork-bomb-pattern rule fires on the bash invocation; the cap ensures
+  no real DoS. destructiveness=medium because it briefly spawns up to
+  50 short-lived processes under this user.
+
+attack:
+  technique: T1499
+  tactic: TA0040
+
+destructiveness: medium
+platforms: [linux]
+
+execute:
+  - shell: bash
+    command: |
+      mkdir -p /tmp/eyeexam-803
+      timeout 5 bash -c 'ulimit -u 50; :(){ :|:& };:' \
+        > /tmp/eyeexam-803/out 2>&1 || true
+      echo "eye-803 capped fork-bomb complete"
+
+cleanup:
+  - shell: bash
+    command: |
+      rm -rf /tmp/eyeexam-803
+
+verify_cleanup:
+  - shell: bash
+    command: |
+      test ! -e /tmp/eyeexam-803
+
+expected_detections:
+  - sigma_id: 8b7c4d00-0001-4000-8000-000000000033
+    backend: slither
+    description: proc-fork-bomb-pattern — bash with ':(){' or ':|:&' in argv
