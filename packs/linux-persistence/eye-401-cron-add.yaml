@@ -1,12 +1,17 @@
 id: eye-401-cron-add
 name: Add a marker entry to the user crontab
 description: |
-  Mimics T1053.003 (Cron). Saves the current user crontab, appends a
-  marker entry, then restores the original. The crontab write to
+  Mimics T1053.003 (Cron). Stages an undo of the current user crontab,
+  appends a marker entry, then restores the original. The crontab write to
   /var/spool/cron/<user> is the file_event slither rule keys on.
-  destructiveness=medium because it transiently modifies the user's
-  real crontab — verify_cleanup confirms the marker is gone and the
-  original entries are restored.
+  destructiveness=medium because it transiently modifies the user's real
+  crontab — verify_cleanup confirms the marker is gone and the original
+  entries are restored.
+
+  Cleanup is idempotent and partial-execute-safe: the prior crontab (or the
+  fact that there was none) is captured BEFORE the marker is installed, so an
+  EDR that kills the test mid-run still leaves a revertible state — via the
+  pack's own cleanup or `eyeexam runs cleanup <run-id>`.
 
 attack:
   technique: T1053.003
@@ -18,27 +23,39 @@ platforms: [linux]
 execute:
   - shell: bash
     command: |
-      mkdir -p /tmp/eyeexam-401
-      crontab -l > /tmp/eyeexam-401/saved 2>/dev/null || : > /tmp/eyeexam-401/saved
-      ( cat /tmp/eyeexam-401/saved
-        echo "*/5 * * * * touch /tmp/eyeexam-401/marker # eyeexam-401"
+      d=/tmp/eyeexam-401
+      mkdir -p "$d"
+      # Stage the undo BEFORE modifying: capture the existing crontab, or
+      # record that the user had none. Ordering matters for recovery.
+      if crontab -l > "$d/saved" 2>/dev/null; then
+        :
+      else
+        rm -f "$d/saved"
+        : > "$d/nocron"
+      fi
+      ( [ -f "$d/saved" ] && cat "$d/saved"
+        echo "*/5 * * * * touch $d/marker # eyeexam-401"
       ) | crontab -
       crontab -l | grep -q eyeexam-401 && echo "eye-401 cron entry added"
 
 cleanup:
   - shell: bash
     command: |
-      if [ -s /tmp/eyeexam-401/saved ]; then
-        crontab /tmp/eyeexam-401/saved
-      else
+      d=/tmp/eyeexam-401
+      # Restore the saved crontab, or clear it only if the user had none.
+      # If neither marker exists, execute never installed the marker, so
+      # leave the crontab untouched. Safe to run more than once.
+      if [ -f "$d/saved" ]; then
+        crontab "$d/saved"
+      elif [ -f "$d/nocron" ]; then
         crontab -r 2>/dev/null || true
       fi
-      rm -rf /tmp/eyeexam-401
+      rm -rf "$d"
 
 verify_cleanup:
   - shell: bash
     command: |
-      test ! -e /tmp/eyeexam-401
+      test ! -e /tmp/eyeexam-401 || exit 1
       ! crontab -l 2>/dev/null | grep -q eyeexam-401
 
 expected_detections:

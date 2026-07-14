@@ -36,11 +36,14 @@ or evasion tradecraft. All items keep the catalog firmly in the
    sandbox directory — the only way to prove the self-cleaning
    contract actually holds across all 43 packs.
 
-5. **Standardize and lint the sandbox/cleanup contract.** Enforce a
-   single derived work directory per pack, idempotent cleanup, and
-   safe re-run when a prior sandbox already exists, then lint that no
-   `execute` writes outside its own sandbox path — a core safety
-   guardrail against a pack touching the host.
+5. **Standardize and lint the sandbox/cleanup contract.** _In progress:_
+   the real-state persistence packs (eye-401/403/404/406) now stage their
+   undo *before* modifying, use marker files (`saved`/`created`/`nocron`)
+   so cleanup is idempotent and partial-execute-safe, and revert correctly
+   even if a live EDR kills the test mid-run — this also fixed a latent bug
+   where an existing *empty* `authorized_keys`/`.bashrc` was deleted rather
+   than restored. Remaining: codify the single-work-dir + save-first
+   contract as a lint rule and extend it across the whole catalog.
 
 6. **Uniform pre-flight dependency guards and graceful skips.** Only
    some packs check tool availability (the `command -v dig` pattern);

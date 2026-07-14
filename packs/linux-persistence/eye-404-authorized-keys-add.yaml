@@ -1,11 +1,16 @@
 id: eye-404-authorized-keys-add
 name: Append a fixture key to ~/.ssh/authorized_keys
 description: |
-  Mimics T1098.004 (Account Manipulation: SSH Authorized Keys). Saves
-  the current ~/.ssh/authorized_keys, appends a marker fixture key
-  (clearly fake, not a usable public key), then restores the original.
-  destructiveness=medium because it transiently modifies a real SSH
-  trust file — verify_cleanup confirms the marker line is gone.
+  Mimics T1098.004 (Account Manipulation: SSH Authorized Keys). Stages an
+  undo, appends a marker fixture key (clearly fake, not a usable public
+  key), then restores the original. destructiveness=medium because it
+  transiently modifies a real SSH trust file — verify_cleanup confirms the
+  marker line is gone.
+
+  Cleanup is idempotent and partial-execute-safe: the original is saved (or
+  its absence recorded) BEFORE the file is touched, so if a live EDR kills
+  the test mid-run the change can still be reverted — by the pack's own
+  cleanup, or later via `eyeexam runs cleanup <run-id>`.
 
 attack:
   technique: T1098.004
@@ -17,12 +22,16 @@ platforms: [linux]
 execute:
   - shell: bash
     command: |
-      mkdir -p /tmp/eyeexam-404 "$HOME/.ssh"
+      d=/tmp/eyeexam-404
+      mkdir -p "$d" "$HOME/.ssh"
       chmod 700 "$HOME/.ssh"
-      if [ -f "$HOME/.ssh/authorized_keys" ]; then
-        cp -p "$HOME/.ssh/authorized_keys" /tmp/eyeexam-404/saved
+      # Stage the undo BEFORE modifying: save the original if it exists,
+      # otherwise record that we created it. Ordering matters — a kill after
+      # this point is always recoverable.
+      if [ -e "$HOME/.ssh/authorized_keys" ]; then
+        cp -p "$HOME/.ssh/authorized_keys" "$d/saved"
       else
-        : > /tmp/eyeexam-404/saved
+        : > "$d/created"
         : > "$HOME/.ssh/authorized_keys"
         chmod 600 "$HOME/.ssh/authorized_keys"
       fi
@@ -34,17 +43,21 @@ execute:
 cleanup:
   - shell: bash
     command: |
-      if [ -s /tmp/eyeexam-404/saved ]; then
-        cp -p /tmp/eyeexam-404/saved "$HOME/.ssh/authorized_keys"
-      else
+      d=/tmp/eyeexam-404
+      # Restore the saved original, or remove the file only if we created it.
+      # If neither marker exists, execute never modified authorized_keys, so
+      # leave it untouched. Safe to run more than once.
+      if [ -f "$d/saved" ]; then
+        cp -p "$d/saved" "$HOME/.ssh/authorized_keys"
+      elif [ -f "$d/created" ]; then
         rm -f "$HOME/.ssh/authorized_keys"
       fi
-      rm -rf /tmp/eyeexam-404
+      rm -rf "$d"
 
 verify_cleanup:
   - shell: bash
     command: |
-      test ! -e /tmp/eyeexam-404
+      test ! -e /tmp/eyeexam-404 || exit 1
       ! grep -q eyeexam-404 "$HOME/.ssh/authorized_keys" 2>/dev/null
 
 expected_detections:

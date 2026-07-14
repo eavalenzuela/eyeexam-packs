@@ -1,11 +1,17 @@
 id: eye-406-at-job-schedule
 name: Schedule a no-op at-job
 description: |
-  Mimics T1053.002 (Scheduled Task/Job: At). Schedules a one-shot at
-  job 5 minutes in the future that touches a sandbox marker, captures
-  the job id, then atrm's it during cleanup so the job never fires.
-  destructiveness=medium because it transiently registers a real
-  at-queue entry. Skips cleanly if at is not installed.
+  Mimics T1053.002 (Scheduled Task/Job: At). Schedules a one-shot at job 5
+  minutes in the future that touches a sandbox marker, captures the job id,
+  then atrm's it during cleanup so the job never fires. destructiveness=
+  medium because it transiently registers a real at-queue entry. Skips
+  cleanly if at is not installed.
+
+  Cleanup is partial-execute-safe: if the test is interrupted between
+  scheduling the job and capturing its id, cleanup falls back to scanning the
+  at queue for the eyeexam-406 marker and removes the job by content, so a
+  live-EDR kill can't leave a scheduled job behind. Recoverable later via
+  `eyeexam runs cleanup <run-id>`.
 
 attack:
   technique: T1053.002
@@ -17,30 +23,53 @@ platforms: [linux]
 execute:
   - shell: bash
     command: |
-      mkdir -p /tmp/eyeexam-406
+      d=/tmp/eyeexam-406
+      mkdir -p "$d"
       if ! command -v at >/dev/null 2>&1; then
-        echo "at not installed; skipping" > /tmp/eyeexam-406/out
+        echo "at not installed; skipping" > "$d/out"
         exit 0
       fi
-      echo "touch /tmp/eyeexam-406/marker # eyeexam-406" \
-        | at now + 5 minutes 2> /tmp/eyeexam-406/at.err
-      grep -oE 'job [0-9]+' /tmp/eyeexam-406/at.err \
-        | head -1 | awk '{print $2}' > /tmp/eyeexam-406/jobid
-      test -s /tmp/eyeexam-406/jobid \
-        && echo "eye-406 at job scheduled (id $(cat /tmp/eyeexam-406/jobid))"
+      echo "touch $d/marker # eyeexam-406" \
+        | at now + 5 minutes 2> "$d/at.err"
+      grep -oE 'job [0-9]+' "$d/at.err" \
+        | head -1 | awk '{print $2}' > "$d/jobid"
+      test -s "$d/jobid" \
+        && echo "eye-406 at job scheduled (id $(cat "$d/jobid"))"
 
 cleanup:
   - shell: bash
     command: |
-      if [ -s /tmp/eyeexam-406/jobid ] && command -v atrm >/dev/null 2>&1; then
-        atrm "$(cat /tmp/eyeexam-406/jobid)" 2>/dev/null || true
+      d=/tmp/eyeexam-406
+      # Remove the scheduled job. Prefer the captured id; if it was never
+      # captured (interrupted between scheduling and the id write), fall back
+      # to scanning the at queue for our marker so the job is not left to
+      # fire. Safe to run more than once.
+      if command -v atrm >/dev/null 2>&1; then
+        if [ -s "$d/jobid" ]; then
+          atrm "$(cat "$d/jobid")" 2>/dev/null || true
+        elif command -v atq >/dev/null 2>&1 && command -v at >/dev/null 2>&1; then
+          for j in $(atq 2>/dev/null | awk '{print $1}'); do
+            if at -c "$j" 2>/dev/null | grep -q eyeexam-406; then
+              atrm "$j" 2>/dev/null || true
+            fi
+          done
+        fi
       fi
-      rm -rf /tmp/eyeexam-406
+      rm -rf "$d"
 
 verify_cleanup:
   - shell: bash
     command: |
-      test ! -e /tmp/eyeexam-406
+      # `|| exit 1` so a leftover sandbox fails verify — a trailing `exit 0`
+      # (needed to make "no matching at-job" the success case) would otherwise
+      # mask a non-terminal residue check.
+      test ! -e /tmp/eyeexam-406 || exit 1
+      if command -v atq >/dev/null 2>&1 && command -v at >/dev/null 2>&1; then
+        for j in $(atq 2>/dev/null | awk '{print $1}'); do
+          at -c "$j" 2>/dev/null | grep -q eyeexam-406 && exit 1
+        done
+      fi
+      exit 0
 
 expected_detections:
   - sigma_id: 8b7c4d00-0001-4000-8000-000000000028
